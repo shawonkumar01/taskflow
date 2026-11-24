@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
+from app.services.project import ProjectService
 from app.services.user import UserService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -45,6 +46,11 @@ def get_user_service(db: DbSession) -> UserService:
     return UserService(db)
 
 
+def get_project_service(db: DbSession) -> ProjectService:
+    return ProjectService(db)
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
