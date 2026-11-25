@@ -7,15 +7,16 @@ from app.core.exceptions import (
     BadRequestError,
     ConflictError,
     NotFoundError,
-    PermissionDeniedError,
 )
 from app.models.project import Project
 from app.models.project_member import ProjectMember, ProjectRole
 from app.models.user import User, UserRole
 from app.repositories.project import ProjectRepository
+from app.repositories.task import TaskRepository
 from app.repositories.user import UserRepository
 from app.schemas.common import PageParams
 from app.schemas.project import MemberAdd, ProjectCreate, ProjectUpdate
+from app.services.access import load_project_access
 
 PROJECT_NOT_FOUND = "Project not found."
 
@@ -25,6 +26,7 @@ class ProjectService:
         self._db = db
         self._projects = ProjectRepository(db)
         self._users = UserRepository(db)
+        self._tasks = TaskRepository(db)
 
     def create(self, user: User, data: ProjectCreate) -> Project:
         project = Project(
@@ -41,37 +43,36 @@ class ProjectService:
         return self._projects.list_for_member(user.id, params.offset, params.limit)
 
     def get(self, user: User, project_id: uuid.UUID) -> Project:
-        project, _ = self._get_visible(user, project_id)
-        return project
+        return load_project_access(self._projects, user, project_id).project
 
     def update(self, user: User, project_id: uuid.UUID, data: ProjectUpdate) -> Project:
-        project, role = self._get_visible(user, project_id)
-        self._require_manage(user, role)
+        access = load_project_access(self._projects, user, project_id)
+        access.require_manage()
         for field, value in data.model_dump(exclude_unset=True).items():
-            setattr(project, field, value)
+            setattr(access.project, field, value)
         self._db.commit()
-        return self._reload(project.id)
+        return self._reload(project_id)
 
     def delete(self, user: User, project_id: uuid.UUID) -> None:
-        project, role = self._get_visible(user, project_id)
-        self._require_manage(user, role)
-        self._projects.delete(project)
+        access = load_project_access(self._projects, user, project_id)
+        access.require_manage()
+        self._projects.delete(access.project)
         self._db.commit()
 
     def add_member(
         self, user: User, project_id: uuid.UUID, data: MemberAdd
     ) -> ProjectMember:
-        project, role = self._get_visible(user, project_id)
-        self._require_manage(user, role)
+        access = load_project_access(self._projects, user, project_id)
+        access.require_manage()
 
         target = self._users.get_by_email(data.email)
         if target is None or not target.is_active:
             raise NotFoundError("User not found.")
-        if any(member.user_id == target.id for member in project.members):
+        if access.has_member(target.id):
             raise ConflictError("User is already a member of this project.")
 
         member = ProjectMember(user=target, role=ProjectRole.MEMBER)
-        project.members.append(member)
+        access.project.members.append(member)
         try:
             self._db.commit()
         except IntegrityError:  # lost a race with a concurrent request
@@ -82,41 +83,19 @@ class ProjectService:
     def remove_member(
         self, user: User, project_id: uuid.UUID, member_user_id: uuid.UUID
     ) -> None:
-        project, role = self._get_visible(user, project_id)
-        self._require_manage(user, role)
+        access = load_project_access(self._projects, user, project_id)
+        access.require_manage()
 
+        project = access.project
         member = next((m for m in project.members if m.user_id == member_user_id), None)
         if member is None:
             raise NotFoundError("Member not found.")
         if member.role == ProjectRole.OWNER:
             raise BadRequestError("The project owner cannot be removed.")
 
+        self._tasks.unassign_user(project.id, member_user_id)
         project.members.remove(member)  # delete-orphan removes the row
         self._db.commit()
-
-    # --- helpers -------------------------------------------------------------
-
-    def _get_visible(
-        self, user: User, project_id: uuid.UUID
-    ) -> tuple[Project, ProjectRole | None]:
-        """Return the project and the caller's project role.
-
-        Non-members get 404 (not 403) so the project's existence is not revealed.
-        Admins can see every project.
-        """
-        project = self._projects.get_by_id(project_id)
-        if project is None:
-            raise NotFoundError(PROJECT_NOT_FOUND)
-
-        role = next((m.role for m in project.members if m.user_id == user.id), None)
-        if role is None and user.role != UserRole.ADMIN:
-            raise NotFoundError(PROJECT_NOT_FOUND)
-        return project, role
-
-    @staticmethod
-    def _require_manage(user: User, role: ProjectRole | None) -> None:
-        if user.role != UserRole.ADMIN and role != ProjectRole.OWNER:
-            raise PermissionDeniedError("Only the project owner can do this.")
 
     def _reload(self, project_id: uuid.UUID) -> Project:
         project = self._projects.get_by_id(project_id)
