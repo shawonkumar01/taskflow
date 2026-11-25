@@ -36,3 +36,12 @@ class NotFoundError(AppError):
 class ConflictError(AppError):
     code = "conflict"
     default_message = "Resource already exists."
+
+
+class RateLimitedError(AppError):
+    code = "rate_limited"
+    default_message = "Too many requests. Please try again later."
+
+    def __init__(self, retry_after: int | None = None) -> None:
+        super().__init__()
+        self.retry_after = retry_after

@@ -1,4 +1,4 @@
-# TaskFlow: Architecture
+﻿# TaskFlow: Architecture
 
 Team task management REST API built with FastAPI.
 This document is the single source of truth for design decisions. Code must follow it; if the code needs to change the design, update this file in the same commit.
@@ -33,7 +33,7 @@ This document is the single source of truth for design decisions. Code must foll
 | Migrations | Alembic | Versioned schema changes |
 | Password hashing | `pwdlib[argon2]` (Argon2id) | Modern, memory-hard hashing |
 | JWT | PyJWT | Maintained, minimal |
-| Rate limiting | slowapi | Protects auth endpoints |
+| Rate limiting | limits | Protects auth endpoints |
 | Testing | pytest, httpx (`TestClient`) | Standard tooling |
 | Lint / format / types | Ruff, mypy | Consistent, clean code |
 | Container | Docker, Docker Compose | Reproducible runs |
@@ -80,64 +80,64 @@ flowchart LR
 
 ```
 taskflow/
-├── app/
-│   ├── main.py                  # App factory, middleware, exception handlers
-│   ├── core/
-│   │   ├── config.py            # Settings (pydantic-settings), loaded from env
-│   │   ├── security.py          # Password hashing, JWT create/decode
-│   │   ├── exceptions.py        # Domain exceptions
-│   │   └── logging.py           # Logging setup
-│   ├── db/
-│   │   ├── base.py              # DeclarativeBase, naming convention, mixins
-│   │   └── session.py           # Engine, SessionLocal, get_db dependency
-│   ├── models/                  # SQLAlchemy models (one file per entity)
-│   │   ├── user.py
-│   │   ├── project.py
-│   │   ├── project_member.py
-│   │   ├── task.py
-│   │   └── refresh_token.py
-│   ├── schemas/                 # Pydantic schemas (Create / Update / Read)
-│   │   ├── common.py            # Page[T], ErrorResponse
-│   │   ├── auth.py
-│   │   ├── user.py
-│   │   ├── project.py
-│   │   └── task.py
-│   ├── repositories/            # Data access only
-│   │   ├── user.py
-│   │   ├── project.py
-│   │   ├── task.py
-│   │   └── refresh_token.py
-│   ├── services/                # Business logic
-│   │   ├── auth.py
-│   │   ├── user.py
-│   │   ├── project.py
-│   │   └── task.py
-│   └── api/
-│       ├── deps.py              # get_db, get_current_user, require_admin, service providers
-│       └── v1/
-│           ├── router.py        # Aggregates all v1 routers
-│           └── endpoints/
-│               ├── health.py
-│               ├── auth.py
-│               ├── users.py
-│               ├── projects.py
-│               └── tasks.py
-├── alembic/                     # Migrations
-├── alembic.ini
-├── tests/
-│   ├── conftest.py              # Fixtures: test DB, client, users, tokens
-│   ├── unit/                    # Services and security, no DB or HTTP
-│   └── integration/             # Full HTTP -> DB tests
-├── .github/workflows/ci.yml
-├── Dockerfile
-├── docker-compose.yml
-├── pyproject.toml               # Ruff, mypy, pytest config
-├── requirements.txt             # Runtime dependencies (pinned)
-├── requirements-dev.txt         # Test and lint dependencies (pinned)
-├── .env.example                 # Documented variables, no real secrets
-├── .gitignore
-├── ARCHITECTURE.md
-└── README.md
+â”œâ”€â”€ app/
+â”‚   â”œâ”€â”€ main.py                  # App factory, middleware, exception handlers
+â”‚   â”œâ”€â”€ core/
+â”‚   â”‚   â”œâ”€â”€ config.py            # Settings (pydantic-settings), loaded from env
+â”‚   â”‚   â”œâ”€â”€ security.py          # Password hashing, JWT create/decode
+â”‚   â”‚   â”œâ”€â”€ exceptions.py        # Domain exceptions
+â”‚   â”‚   â””â”€â”€ logging.py           # Logging setup
+â”‚   â”œâ”€â”€ db/
+â”‚   â”‚   â”œâ”€â”€ base.py              # DeclarativeBase, naming convention, mixins
+â”‚   â”‚   â””â”€â”€ session.py           # Engine, SessionLocal, get_db dependency
+â”‚   â”œâ”€â”€ models/                  # SQLAlchemy models (one file per entity)
+â”‚   â”‚   â”œâ”€â”€ user.py
+â”‚   â”‚   â”œâ”€â”€ project.py
+â”‚   â”‚   â”œâ”€â”€ project_member.py
+â”‚   â”‚   â”œâ”€â”€ task.py
+â”‚   â”‚   â””â”€â”€ refresh_token.py
+â”‚   â”œâ”€â”€ schemas/                 # Pydantic schemas (Create / Update / Read)
+â”‚   â”‚   â”œâ”€â”€ common.py            # Page[T], ErrorResponse
+â”‚   â”‚   â”œâ”€â”€ auth.py
+â”‚   â”‚   â”œâ”€â”€ user.py
+â”‚   â”‚   â”œâ”€â”€ project.py
+â”‚   â”‚   â””â”€â”€ task.py
+â”‚   â”œâ”€â”€ repositories/            # Data access only
+â”‚   â”‚   â”œâ”€â”€ user.py
+â”‚   â”‚   â”œâ”€â”€ project.py
+â”‚   â”‚   â”œâ”€â”€ task.py
+â”‚   â”‚   â””â”€â”€ refresh_token.py
+â”‚   â”œâ”€â”€ services/                # Business logic
+â”‚   â”‚   â”œâ”€â”€ auth.py
+â”‚   â”‚   â”œâ”€â”€ user.py
+â”‚   â”‚   â”œâ”€â”€ project.py
+â”‚   â”‚   â””â”€â”€ task.py
+â”‚   â””â”€â”€ api/
+â”‚       â”œâ”€â”€ deps.py              # get_db, get_current_user, require_admin, service providers
+â”‚       â””â”€â”€ v1/
+â”‚           â”œâ”€â”€ router.py        # Aggregates all v1 routers
+â”‚           â””â”€â”€ endpoints/
+â”‚               â”œâ”€â”€ health.py
+â”‚               â”œâ”€â”€ auth.py
+â”‚               â”œâ”€â”€ users.py
+â”‚               â”œâ”€â”€ projects.py
+â”‚               â””â”€â”€ tasks.py
+â”œâ”€â”€ alembic/                     # Migrations
+â”œâ”€â”€ alembic.ini
+â”œâ”€â”€ tests/
+â”‚   â”œâ”€â”€ conftest.py              # Fixtures: test DB, client, users, tokens
+â”‚   â”œâ”€â”€ unit/                    # Services and security, no DB or HTTP
+â”‚   â””â”€â”€ integration/             # Full HTTP -> DB tests
+â”œâ”€â”€ .github/workflows/ci.yml
+â”œâ”€â”€ Dockerfile
+â”œâ”€â”€ docker-compose.yml
+â”œâ”€â”€ pyproject.toml               # Ruff, mypy, pytest config
+â”œâ”€â”€ requirements.txt             # Runtime dependencies (pinned)
+â”œâ”€â”€ requirements-dev.txt         # Test and lint dependencies (pinned)
+â”œâ”€â”€ .env.example                 # Documented variables, no real secrets
+â”œâ”€â”€ .gitignore
+â”œâ”€â”€ ARCHITECTURE.md
+â””â”€â”€ README.md
 ```
 
 ### Naming and style rules

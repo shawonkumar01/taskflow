@@ -12,8 +12,10 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
+    RateLimitedError,
     UnauthorizedError,
 )
+from app.core.logging import request_id_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ STATUS_BY_ERROR: dict[type[AppError], int] = {
     PermissionDeniedError: 403,
     NotFoundError: 404,
     ConflictError: 409,
+    RateLimitedError: 429,
 }
 
 
@@ -32,11 +35,15 @@ def _body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 
 async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     status_code = STATUS_BY_ERROR.get(type(exc), 400)
-    headers = {"WWW-Authenticate": "Bearer"} if status_code == 401 else None
+    headers: dict[str, str] = {}
+    if status_code == 401:
+        headers["WWW-Authenticate"] = "Bearer"
+    if isinstance(exc, RateLimitedError) and exc.retry_after:
+        headers["Retry-After"] = str(exc.retry_after)
     return JSONResponse(
         status_code=status_code,
         content=_body(exc.code, exc.message, exc.details),
-        headers=headers,
+        headers=headers or None,
     )
 
 
@@ -64,10 +71,16 @@ async def handle_validation_error(
 
 
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    request_id = request_id_ctx.get()
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content=_body("internal_error", "An unexpected error occurred."),
+        content=_body(
+            "internal_error",
+            "An unexpected error occurred.",
+            {"request_id": request_id},
+        ),
+        headers={"X-Request-ID": request_id},
     )
 
 

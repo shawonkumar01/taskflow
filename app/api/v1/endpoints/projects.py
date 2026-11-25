@@ -1,9 +1,10 @@
 ﻿import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, ProjectServiceDep
+from app.core.rate_limit import member_rate_limit
 from app.models.project import Project
 from app.models.project_member import ProjectMember
 from app.schemas.common import Page, PageParams
@@ -69,6 +70,7 @@ def delete_project(
     "/{project_id}/members",
     response_model=MemberRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(member_rate_limit)],  # members are looked up by email
 )
 def add_member(
     project_id: uuid.UUID,
